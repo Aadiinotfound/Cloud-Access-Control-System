@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Cloud Access Control Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      font-family: "Segoe UI", sans-serif;
+      background: #f8fafc;
+      margin: 0;
+      color: #333;
+    }
+    header {
+      background: #0077b6;
+      color: white;
+      text-align: center;
+      padding: 15px;
+      font-size: 1.4rem;
+      letter-spacing: 0.5px;
+      font-weight: 600;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 30px auto;
+      padding: 10px;
+    }
+    .charts {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 20px;
+      justify-content: center;
+    }
+    .chart-box {
+      flex: 1 1 450px;
+      background: #fff;
+      border-radius: 10px;
+      padding: 20px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      text-align: center;
+    }
+    h2 {
+      color: #0077b6;
+      margin-bottom: 10px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 20px;
+      background: white;
+      border-radius: 10px;
+      overflow: hidden;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    }
+    thead {
+      background: #0077b6;
+      color: white;
+    }
+    th, td {
+      padding: 10px;
+      text-align: center;
+      border-bottom: 1px solid #eee;
+    }
+    tr:hover {
+      background: #f1f1f1;
+    }
+    footer {
+      text-align: center;
+      padding: 15px;
+      color: #777;
+      font-size: 14px;
+      margin-top: 30px;
+    }
+  </style>
+</head>
+<body>
+  <header>☁️ Cloud Access Control Dashboard</header>
+
+  <div class="container">
+    <div class="charts">
+      <div class="chart-box">
+        <h2>📊 Login Attempts (Success vs Failed)</h2>
+        <canvas id="loginChart"></canvas>
+      </div>
+      <div class="chart-box">
+        <h2>🌍 Country Distribution</h2>
+        <canvas id="countryChart"></canvas>
+      </div>
+    </div>
+
+    <h2 style="margin-top:40px; text-align:center;">🧠 Login Activity Logs</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Email</th>
+          <th>IP Address</th>
+          <th>Country</th>
+          <th>Timestamp</th>
+          <th>Status</th>
+          <th>Threat</th>
+          <th>Device Info</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td colspan="7">Loading logs...</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <footer>© 2025 Cloud Access Control System</footer>
+
+  <script>
+    // ===========================
+    // 📊 FETCH DASHBOARD STATS
+    // ===========================
+    async function fetchStats() {
+      try {
+        const res = await fetch("/api/stats");
+        const data = await res.json();
+
+        if (data.error) {
+          console.error("Error fetching stats:", data.error);
+          return;
+        }
+        renderCharts(data);
+      } catch (error) {
+        console.error("Error fetching stats:", error);
+      }
+    }
+
+    // ===========================
+    // 📈 RENDER CHARTS
+    // ===========================
+    function renderCharts(data) {
+      const loginCtx = document.getElementById("loginChart").getContext("2d");
+      new Chart(loginCtx, {
+        type: "bar",
+        data: {
+          labels: ["Success", "Failed"],
+          datasets: [
+            {
+              data: [data.success || 0, data.blocked || 0],
+              backgroundColor: ["#4CAF50", "#F44336"],
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { display: false } },
+        },
+      });
+
+      const countryCtx = document.getElementById("countryChart").getContext("2d");
+      new Chart(countryCtx, {
+        type: "pie",
+        data: {
+          labels: Object.keys(data.countries || {}),
+          datasets: [
+            {
+              data: Object.values(data.countries || {}),
+              backgroundColor: ["#0077b6", "#48cae4", "#90e0ef", "#caf0f8"],
+            },
+          ],
+        },
+        options: { responsive: true },
+      });
+    }
+
+    // ===========================
+    // 🧾 FETCH & RENDER LOGIN LOGS
+    // ===========================
+    async function loadLogs() {
+      try {
+        const res = await fetch("/api/logs");
+        const data = await res.json();
+
+        const tableBody = document.querySelector("table tbody");
+        tableBody.innerHTML = "";
+
+        if (data.logs && data.logs.length > 0) {
+          data.logs.forEach((log) => {
+            const row = document.createElement("tr");
+            row.innerHTML = `
+              <td>${log.email}</td>
+              <td>${log.ip}</td>
+              <td>${log.country}</td>
+              <td>${log.timestamp}</td>
+              <td style="color:${log.status === "Blocked" ? "red" : "green"}">
+                ${log.status}
+              </td>
+              <td>${log.threat}</td>
+              <td>${formatDeviceInfo(log.device_info)}</td>
+            `;
+            tableBody.appendChild(row);
+          });
+        } else {
+          tableBody.innerHTML = `<tr><td colspan="7">No login records found</td></tr>`;
+        }
+      } catch (error) {
+        console.error("Error loading logs:", error);
+      }
+    }
+
+    // Format Device Info
+    function formatDeviceInfo(info) {
+      if (!info || typeof info === "string") return info || "-";
+      if (typeof info === "object") {
+        return `
+          <div style="font-size:12px; line-height:1.4">
+            <b>OS:</b> ${info.os || "-"}<br>
+            <b>Browser:</b> ${info.browser || "-"}<br>
+            <b>Lang:</b> ${info.language || "-"}<br>
+            <b>Screen:</b> ${info.screen || "-"}<br>
+            <b>UID:</b> ${info.uid || "-"}
+          </div>`;
+      }
+      return "-";
+    }
+
+    // Run everything on load
+    window.addEventListener("DOMContentLoaded", () => {
+      fetchStats();
+      loadLogs();
+    });
+  </script>
+</body>
+</html>
+
+

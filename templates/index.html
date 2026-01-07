@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Secure Cloud Login</title>
+  <style>
+    body {
+      font-family: "Segoe UI", sans-serif;
+      background: linear-gradient(135deg, #00aaff, #0077b6);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      margin: 0;
+    }
+
+    .login-container {
+      background: #fff;
+      padding: 40px 30px;
+      border-radius: 10px;
+      box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+      width: 340px;
+      text-align: center;
+    }
+
+    h2 {
+      color: #0077b6;
+      margin-bottom: 25px;
+    }
+
+    input {
+      width: 90%;
+      padding: 10px;
+      margin: 8px 0;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+      outline: none;
+    }
+
+    button {
+      background: #0077b6;
+      color: #fff;
+      border: none;
+      padding: 10px 25px;
+      border-radius: 5px;
+      cursor: pointer;
+      font-size: 1em;
+      margin-top: 10px;
+    }
+
+    button:hover {
+      background: #005f8c;
+    }
+
+    .message {
+      margin-top: 15px;
+      font-size: 0.9em;
+    }
+
+    .error {
+      color: red;
+    }
+
+    .success {
+      color: green;
+    }
+  </style>
+</head>
+<body>
+  <div class="login-container">
+    <h2>☁️ Cloud Access Control</h2>
+    <input type="email" id="email" placeholder="Email" required />
+    <input type="password" id="password" placeholder="Password" required />
+    <button onclick="login()">Login</button>
+    <div class="message" id="message"></div>
+  </div>
+
+  <!-- ✅ Keep FingerprintJS before module script -->
+  <script src="https://cdn.jsdelivr.net/npm/@fingerprintjs/fingerprintjs@3/dist/fp.min.js"></script>
+
+  <!-- ✅ Secure Login Flow -->
+  <script type="module">
+    async function login() {
+      const email = document.getElementById("email").value.trim();
+      const password = document.getElementById("password").value.trim();
+      const messageBox = document.getElementById("message");
+
+      messageBox.innerHTML = "";
+
+      if (!email || !password) {
+        messageBox.innerHTML = "⚠️ Please enter both email and password.";
+        messageBox.classList.add("error");
+        return;
+      }
+
+      try {
+        // 🧠 Collect IP and geolocation
+        const ipRes = await fetch("https://ipapi.co/json/");
+        const ipData = await ipRes.json();
+        const ip = ipData.ip || "Unknown";
+        const country = ipData.country_name || "Unknown";
+
+        // 🧠 Collect device fingerprint
+        const fp = await FingerprintJS.load();
+        const result = await fp.get();
+        const deviceInfo = result.visitorId || navigator.userAgent;
+
+        console.log("Collected device info:", deviceInfo);
+
+        // 🧠 Send data to Flask
+        const response = await fetch("/verify", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email,
+            password,
+            ip,
+            country,
+            device_info: deviceInfo
+          })
+        });
+
+        const data = await response.json();
+        console.log("Flask replied:", data);
+
+        if (response.ok && data.redirect) {
+          messageBox.innerHTML = "✅ " + data.message;
+          messageBox.classList.add("success");
+          setTimeout(() => {
+            window.location.href = data.redirect;
+          }, 500);
+        } else {
+          messageBox.innerHTML = "❌ " + (data.message || "Login failed.");
+          messageBox.classList.add("error");
+        }
+
+      } catch (error) {
+        console.error("Error during login():", error);
+        messageBox.innerHTML = "❌ Network or server error.";
+        messageBox.classList.add("error");
+      }
+    }
+
+    window.login = login; // expose globally
+  </script>
+</body>
+</html>
